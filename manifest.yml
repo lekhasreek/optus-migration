@@ -4,7 +4,7 @@ modules:
       resource: main
       resolver:
         function: resolver
-      title: optus migration
+      title: Knosys Migration
   function:
     - key: resolver
       handler: index.handler
@@ -16,7 +16,7 @@ app:
     name: nodejs22.x
     memoryMB: 256
     architecture: arm64
-  id: ari:cloud:ecosystem::app/91a28c2d-c47e-4248-8b84-c9778b081f49
+  id: ari:cloud:ecosystem::app/096369f0-30fe-485c-a553-7361a9d992c7
 permissions:
   scopes:
     - read:confluence-space.summary
@@ -26,5 +26,3 @@ permissions:
     - read:space:confluence
     - read:content:confluence
     - write:content:confluence
-
-   

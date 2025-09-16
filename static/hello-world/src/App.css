@@ -1,0 +1,162 @@
+/* App.css — simple, clean centered card layout for the migration UI */
+:root{
+  --bg: #f6f8fa;
+  --card-bg: #ffffff;
+  --muted: #6b7280;
+  --accent: #0052cc; /* Confluence-like blue */
+  --success: #0f8b5f;
+}
+
+html,body,#root{
+  height:100%;
+}
+body{
+  margin:0;
+  background: var(--bg);
+  font-family: Inter, Roboto, Arial, sans-serif;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+.app-shell{
+  min-height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+}
+
+.card{
+  width:100%;
+  max-width:760px;
+  background:var(--card-bg);
+  border-radius:10px;
+  box-shadow:0 6px 20px rgba(15,23,42,0.08);
+  padding:24px;
+  box-sizing:border-box;
+}
+
+.header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:18px;
+}
+
+.title{
+  font-size:20px;
+  margin:0;
+  color:#0b1220;
+}
+
+.controls{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap:12px;
+  align-items:start;
+}
+
+.form-row{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  color:var(--muted);
+  font-size:14px;
+}
+
+select,input[type="text"],input[type="file"],input, button{
+  font-size:14px;
+}
+
+select,input{
+  padding:8px 10px;
+  border:1px solid #e6e9ee;
+  border-radius:6px;
+  background: #fff;
+  display:block;
+  width:100%;
+  box-sizing:border-box;
+}
+
+input[type="file"]{
+  padding:6px 0;
+  max-width:100%;
+}
+
+.button-row{
+  display:flex;
+  gap:12px;
+  align-items:center;
+}
+
+button{
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding:8px 14px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+button.secondary{
+  background:transparent;
+  color:var(--accent);
+  border:1px solid #dbe7ff;
+}
+
+.status{
+  margin-top:12px;
+  font-family:monospace;
+  color:#111827;
+  word-break:break-word;
+  overflow-wrap:anywhere;
+}
+
+.small-muted{
+  color:var(--muted);
+  font-size:13px;
+}
+
+@media (min-width:640px){
+  /* Two-column layout on wider screens. The right column is narrow to hold single-field inputs (like Page ID). */
+  .controls{
+    grid-template-columns: 1fr 240px;
+    grid-auto-rows: auto;
+    gap:16px 20px;
+  }
+
+  /* Make elements marked full span both columns */
+  .controls .full{
+    grid-column: 1 / -1;
+  }
+
+  /* Align label and control vertically in the grid cells */
+  .form-row label{
+    width:100%;
+  }
+
+  /* For the narrow right column, keep inputs snug */
+  .controls > .form-row:nth-child(3) input,
+  .controls > .form-row:nth-child(3) select{
+    max-width:240px;
+  }
+}
+
+/* Ensure long select options and links don't overflow the card */
+.card select, .card input, .card label {
+  min-width:0;
+}
+
+.link-wrap{
+  white-space:normal;
+  word-break:break-all;
+  overflow-wrap:anywhere;
+}

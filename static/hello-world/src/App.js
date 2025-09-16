@@ -1,9 +1,10 @@
 // static/hello-world/src/app.js
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@forge/bridge';
+import './App.css';
 
 function App() {
-  const [mode, setMode] = useState('create'); // "create", "update", "child"
+  const [mode, setMode] = useState('create'); // "create", "update"
   const [spaces, setSpaces] = useState([]);
   const [spaceId, setSpaceId] = useState('');
   const [pageId, setPageId] = useState('');
@@ -98,73 +99,89 @@ function App() {
   };
 
   return (
-    <div style={{ padding: 16, fontFamily: 'Arial, sans-serif' }}>
-      <h2>Knosys → Confluence Migration</h2>
+    <div className="app-shell">
+      <div className="card">
+        <div className="header">
+          <h2 className="title">Knosys → Confluence Migration</h2>
+        </div>
 
-      <div style={{ marginBottom: 12 }}>
-        <label>
-          <strong>Mode:</strong>{' '}
-          <select value={mode} onChange={(e) => setMode(e.target.value)}>
-            <option value="create">Create new page (by space)</option>
-            <option value="update">Update existing page (by pageId)</option>
-            <option value="child">Create child page (under parentId)</option>
-          </select>
-        </label>
-      </div>
+        <div className="controls">
+          <div className="form-row full">
+            <label>
+              <strong>Mode:</strong>
+              <select value={mode} onChange={(e) => setMode(e.target.value)}>
+                <option value="create">Create new page (by space)</option>
+                <option value="update">Update existing page (by pageId)</option>
+              </select>
+            </label>
+          </div>
 
-      {(mode === 'create' || mode === 'child' || mode === 'update') && (
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Space:&nbsp;
-            <select
-              value={spaceId}
-              onChange={(e) => setSpaceId(e.target.value)}
+          {(mode === 'create' || mode === 'update') && (
+            <div className="form-row">
+              <label>
+                Space:
+                <select value={spaceId} onChange={(e) => setSpaceId(e.target.value)}>
+                  <option value="">-- select space --</option>
+                  {spaces.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.key})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
+          {mode === 'update' && (
+            <div className="form-row">
+              <label>
+                Page ID:
+                <input
+                  value={pageId}
+                  onChange={(e) => setPageId(e.target.value)}
+                  placeholder="numeric page id"
+                />
+              </label>
+            </div>
+          )}
+
+          <div className="form-row full">
+            <label>
+              Title (optional override):
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="leave blank to auto-use JSON title"
+              />
+            </label>
+          </div>
+
+          <div className="form-row full">
+            <input type="file" accept=".json,application/json" onChange={onFileChange} />
+            {fileName && <div className="small-muted">Selected file: {fileName}</div>}
+          </div>
+
+          <div className="form-row full button-row">
+            <button onClick={handleSubmit}>Run Migration</button>
+            <button
+              className="secondary"
+              onClick={() => {
+                setMode('create');
+                setSpaceId('');
+                setPageId('');
+                setTitle('');
+                setFileName('');
+                setJsonData(null);
+                setStatus('');
+              }}
             >
-              <option value="">-- select space --</option>
-              {spaces.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.key})
-                </option>
-              ))}
-            </select>
-          </label>
+              Reset
+            </button>
+          </div>
         </div>
-      )}
 
-      {(mode === 'update' || mode === 'child') && (
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            Page ID:&nbsp;
-            <input
-              value={pageId}
-              onChange={(e) => setPageId(e.target.value)}
-              placeholder="numeric page id"
-            />
-          </label>
-        </div>
-      )}
-
-      <div style={{ marginBottom: 8 }}>
-        <label>
-          Title (optional override):&nbsp;
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="leave blank to auto-use JSON title"
-          />
-        </label>
+        <div className="status link-wrap">{status}</div>
       </div>
-
-      <div style={{ marginBottom: 8 }}>
-        <input type="file" accept=".json,application/json" onChange={onFileChange} />
-        {fileName && <div>Selected file: {fileName}</div>}
-      </div>
-
-      <div style={{ marginBottom: 12 }}>
-        <button onClick={handleSubmit}>Run Migration</button>
-      </div>
-
-      <div style={{ marginTop: 16, whiteSpace: 'pre-wrap' }}>{status}</div>
     </div>
   );
 }
