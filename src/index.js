@@ -1,6 +1,6 @@
 // src/index.js
 import Resolver from '@forge/resolver';
-import api, { route } from '@forge/api';
+import api, { route, storage } from '@forge/api';
 
 const resolver = new Resolver();
 
@@ -42,6 +42,90 @@ function extractHtmlFromNode(node = {}) {
     }
   }
   return html;
+}
+
+// Rewrite anchors that carry a data-itemid attribute to point at the app redirect
+// Use a relative path; the deployed app will serve this static page at /create
+const BASE_REDIRECT_URL = '/create';
+
+function rewriteLinksForRedirect(html = '', spaceId) {
+  if (!html) return html;
+  // Replace anchors with data-itemid="..." and preserve inner text
+  return html.replace(/<a([^>]*?)data-itemid=["']([^"']+)["']([^>]*)>(.*?)<\/a>/gi, (m, pre, id, post, inner) => {
+    const href = `${BASE_REDIRECT_URL}?itemId=${encodeURIComponent(id)}${spaceId ? `&spaceId=${encodeURIComponent(String(spaceId))}` : ''}&title=${encodeURIComponent(String(inner).slice(0,200))}`;
+    return `<a href="${href}">${inner}</a>`;
+  });
+}
+
+// Internal helper: ensure page exists for an itemId and return page metadata
+async function ensurePageForItemInternal(itemId, spaceId, title) {
+  if (!itemId) return { error: 'Missing itemId' };
+  if (!spaceId) return { error: 'Missing spaceId' };
+
+  const mapKey = `item-map:${itemId}`;
+  try {
+    const existing = await storage.get(mapKey);
+    if (existing && existing.pageId) {
+      const webui = `/wiki/spaces/${encodeURIComponent(String(spaceId))}/pages/${encodeURIComponent(String(existing.pageId))}`;
+      return { ok: true, pageId: existing.pageId, webui };
+    }
+  } catch (e) {
+    console.log('ensurePageForItemInternal: storage.get failed', e);
+  }
+
+  // Create new page with placeholder body and set title based on link text
+  const created = await createPage(spaceId, title || `Migrated item ${itemId}`, undefined, 'To be Migrated!');
+  const newPageId = created && (created.id || (created.results && created.results[0] && created.results[0].id));
+  if (!newPageId) return { error: 'Could not determine created page id' };
+
+  try {
+    await storage.set(mapKey, { pageId: String(newPageId), createdAt: new Date().toISOString() });
+  } catch (e) {
+    console.log('ensurePageForItemInternal: storage.set failed', e);
+  }
+
+  const webui = `/wiki/spaces/${encodeURIComponent(String(spaceId))}/pages/${encodeURIComponent(String(newPageId))}`;
+  return { ok: true, pageId: String(newPageId), webui };
+}
+
+// Replace anchors with data-itemid in HTML with direct webui links by creating/looking up pages
+async function replaceItemLinksWithWebui(html = '', spaceId) {
+  if (!html) return html;
+  const regex = /<a([^>]*?)data-itemid=["']([^"']+)["']([^>]*)>(.*?)<\/a>/gi;
+  const ids = new Set();
+  let match;
+  while ((match = regex.exec(html)) !== null) {
+    ids.add(match[2]);
+  }
+
+  if (ids.size === 0) return html;
+
+  const mapping = {};
+  for (const id of ids) {
+    try {
+      const res = await ensurePageForItemInternal(id, spaceId, `Migrated item ${id}`);
+      if (res && res.ok && res.webui) {
+        const page = await getPageById(res.pageId);
+        const pageTitle = page.title || `Migrated item ${id}`;
+        mapping[id] = { webui: res.webui, title: pageTitle };
+      } else {
+        mapping[id] = null;
+      }
+    } catch (e) {
+      console.log('replaceItemLinksWithWebui: failed for', id, e);
+      mapping[id] = null;
+    }
+  }
+
+  // Now replace anchors using the mapping
+  return html.replace(/<a([^>]*?)data-itemid=["']([^"']+)["']([^>]*)>(.*?)<\/a>/gi, (m, pre, id, post, inner) => {
+    const entry = mapping[id];
+    if (entry && entry.webui) {
+      return `<a href="${entry.webui}">${escapeHtml(inner)}</a>`; // Keep link name unchanged
+    }
+    // Fallback to original anchor if mapping failed
+    return m;
+  });
 }
 
 async function getSpaceIdFromKey(spaceKey) {
@@ -168,12 +252,12 @@ async function createPage(spaceId, title, parentId, htmlValue) {
     spaceId: String(spaceId),
     status: 'current',
     title,
-    ...(parentId ? { parentId: String(parentId) } : {}),
-    body: {
+  ...(parentId ? { parentId: String(parentId) } : {}),
+  body: {
       representation: 'storage',
       value: `<div>${htmlValue}</div>`
     },
-    subtype: 'live'
+  // Removing 'subtype: "live"' so pages are created in normal (view) mode
   };
 
   const res = await api.asApp().requestConfluence(
@@ -244,11 +328,15 @@ resolver.define('migrateJsonToPage', async (req) => {
       const existing = await getPageById(pageIdToUpdate);
       const currentVersionNumber = existing.version?.number ?? 0;
 
+      // For updates, pre-resolve item links so they open directly
+      let processedHtml = await replaceItemLinksWithWebui(htmlBody, payload.spaceId);
+      // Also keep redirect-style links for any items not handled
+      processedHtml = rewriteLinksForRedirect(processedHtml, payload.spaceId);
       const updated = await updatePage(
         pageIdToUpdate,
         title,
         payload.spaceId,   // ✅ always trust frontend spaceId
-        htmlBody,
+        processedHtml,
         currentVersionNumber
       );
       return { ok: true, action: 'updated', page: updated };
@@ -262,16 +350,59 @@ resolver.define('migrateJsonToPage', async (req) => {
     }
     if (!targetSpaceId) return { error: 'Missing spaceId or spaceKey in payload' };
 
+    // For creates, pre-resolve item links (create placeholders) so links work immediately
+    let processedHtml = await replaceItemLinksWithWebui(htmlBody, targetSpaceId);
+    // Keep redirect-style links for any remaining items
+    processedHtml = rewriteLinksForRedirect(processedHtml, targetSpaceId);
     const created = await createPage(
       targetSpaceId,
       title,
       payload.createAsChildOf || undefined,
-      htmlBody
+      processedHtml
     );
     return { ok: true, action: 'created', page: created };
 
   } catch (err) {
     console.error('migrateJsonToPage error', err);
+    return { error: err.message || String(err) };
+  }
+});
+
+// Ensure a Confluence page exists for an external item id. If missing,
+// create it and persist a mapping in Forge storage.
+resolver.define('ensurePageForItem', async (req) => {
+  try {
+  const { itemId, spaceId, title } = req.payload || req.query || {};
+  console.log('ensurePageForItem called', { payload: req.payload, query: req.query });
+    if (!itemId) return { error: 'Missing itemId' };
+    if (!spaceId) return { error: 'Missing spaceId' };
+
+    const mapKey = `item-map:${itemId}`;
+    try {
+      const existing = await storage.get(mapKey);
+      if (existing && existing.pageId) {
+        const webui = `/wiki/spaces/${encodeURIComponent(String(spaceId))}/pages/${encodeURIComponent(String(existing.pageId))}`;
+        return { ok: true, pageId: existing.pageId, webui };
+      }
+    } catch (e) {
+      console.log('ensurePageForItem: storage.get failed', e);
+    }
+
+    // Create new page with required placeholder body
+    const created = await createPage(spaceId, title || `Migrated item ${itemId}`, undefined, 'To be Migrated!');
+    const newPageId = created && (created.id || (created.results && created.results[0] && created.results[0].id));
+    if (!newPageId) return { error: 'Could not determine created page id' };
+
+    try {
+      await storage.set(mapKey, { pageId: String(newPageId), createdAt: new Date().toISOString() });
+    } catch (e) {
+      console.log('ensurePageForItem: storage.set failed', e);
+    }
+
+    const webui = `/wiki/spaces/${encodeURIComponent(String(spaceId))}/pages/${encodeURIComponent(String(newPageId))}`;
+    return { ok: true, pageId: String(newPageId), webui };
+  } catch (err) {
+    console.error('ensurePageForItem error', err);
     return { error: err.message || String(err) };
   }
 });

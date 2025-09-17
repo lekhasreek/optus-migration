@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Creating linked page…</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial; padding:24px}
+    .card{max-width:720px;margin:48px auto;padding:20px;border-radius:10px;background:#fff;box-shadow:0 6px 20px rgba(15,23,42,0.06)}
+    .muted{color:#6b7280}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Opening linked page…</h2>
+    <p class="muted">Please wait while we create or find the linked Confluence page. You will be redirected shortly.</p>
+    <p id="status"></p>
+  </div>
+
+  <script>
+    (async function(){
+      const params = new URLSearchParams(location.search);
+      const itemId = params.get('itemId');
+      const spaceId = params.get('spaceId');
+      const title = params.get('title') || '';
+      const statusEl = document.getElementById('status');
+      if(!itemId || !spaceId){ statusEl.textContent = 'Missing itemId or spaceId'; return; }
+
+      statusEl.textContent = 'Contacting migration app…';
+
+      try{
+        // POST to the Forge resolver endpoint - same origin when served from the app
+        const res = await fetch('/_/api/ensurePageForItem', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId, spaceId, title })
+        });
+        const j = await res.json();
+        if(j && j.ok && j.webui){
+          // If webui is a relative path, try to build absolute URL from current host
+          let url = j.webui;
+          if(url.startsWith('/')){
+            const origin = location.origin;
+            url = origin + url;
+          }
+          location.replace(url);
+          return;
+        }
+        statusEl.textContent = 'Error: ' + (j && (j.error || JSON.stringify(j)));
+      }catch(e){
+        statusEl.textContent = 'Request failed: ' + e.message;
+      }
+    })();
+  </script>
+</body>
+</html>
