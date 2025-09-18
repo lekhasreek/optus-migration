@@ -44,3 +44,13 @@ forge install
 ## Support
 
 See [Get help](https://developer.atlassian.com/platform/forge/get-help/) for how to get help and provide feedback.
+
+## Auto-create linked pages (link redirect)
+
+This app includes a small redirect page at `/create` that is used when anchors in migrated content point to external Knosys items. When a user clicks such a link the redirect page calls the Forge resolver `ensurePageForItem` which will create a placeholder Confluence page (body: "To be Migrated!") if one doesn't exist, then redirect the user to the created page.
+
+To test locally or on your deployed Forge app:
+- Visit the redirect URL in your browser: `/create?itemId=XYZ&spaceId=123&title=Optional+Title`
+- The page will call the resolver and either redirect to the Confluence page or show a link/status if an error occurs.
+
+If you changed the resolver responses, the redirect page is tolerant of multiple response shapes and will try to read `webui` or `page.id` from the resolver response.

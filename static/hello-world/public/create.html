@@ -21,7 +21,8 @@
     (async function(){
       const params = new URLSearchParams(location.search);
       const itemId = params.get('itemId');
-      const spaceId = params.get('spaceId');
+  const spaceId = params.get('spaceId');
+  const spaceKey = params.get('spaceKey');
       const title = params.get('title') || '';
       const statusEl = document.getElementById('status');
       if(!itemId || !spaceId){ statusEl.textContent = 'Missing itemId or spaceId'; return; }
@@ -30,22 +31,55 @@
 
       try{
         // POST to the Forge resolver endpoint - same origin when served from the app
+        const body = { itemId, title };
+        if (spaceId) body.spaceId = spaceId;
+        if (spaceKey) body.spaceKey = spaceKey;
         const res = await fetch('/_/api/ensurePageForItem', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itemId, spaceId, title })
+          body: JSON.stringify(body)
         });
         const j = await res.json();
-        if(j && j.ok && j.webui){
-          // If webui is a relative path, try to build absolute URL from current host
-          let url = j.webui;
-          if(url.startsWith('/')){
-            const origin = location.origin;
-            url = origin + url;
+
+  // Response shapes varied historically. Normalize possible locations for the generated URL:
+        // 1) { ok:true, webui: '/wiki/...' }
+        // 2) { ok:true, page: { id, webui } }
+        // 3) { ok:true, action:'ensured', page: { ok:true, id, webui } }
+
+        const pageObj = (j && j.page) ? j.page : j;
+        const webui = pageObj && (pageObj.webui || (pageObj._links && pageObj._links.webui));
+        const pageId = pageObj && (pageObj.id || pageObj.pageId);
+
+        // If resolver supplied a fully-qualified URL, prefer it
+        const absoluteFromResp = (j && j.url) || (pageObj && pageObj.url);
+        if (absoluteFromResp) {
+          location.replace(absoluteFromResp);
+          return;
+        }
+
+        // If resolver supplied base + webui, use that
+        const baseFromResp = (j && j.base) || (pageObj && pageObj.base);
+        if (baseFromResp && webui) {
+          location.replace(baseFromResp + webui);
+          return;
+        }
+
+        if (webui) {
+          // If webui is a relative path, build absolute URL from current host as last resort
+          let url = webui;
+          if (url.startsWith('/')) {
+            url = location.origin + url;
           }
           location.replace(url);
           return;
         }
+
+        // Fallback: if we at least have a pageId, show a link so the user can open it.
+        if (pageId) {
+          statusEl.innerHTML = 'Page created (id=' + String(pageId) + '). <a href="/wiki/pages/' + encodeURIComponent(String(pageId)) + '">Open page</a>';
+          return;
+        }
+
         statusEl.textContent = 'Error: ' + (j && (j.error || JSON.stringify(j)));
       }catch(e){
         statusEl.textContent = 'Request failed: ' + e.message;
