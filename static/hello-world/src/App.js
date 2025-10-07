@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { invoke } from '@forge/bridge';
 
 function App() {
-  const [mode, setMode] = useState('create'); // "create", "update", "child"
+  const [mode, setMode] = useState('create'); // "create", "update"
   const [spaces, setSpaces] = useState([]);
   const [spaceId, setSpaceId] = useState('');
   const [pageId, setPageId] = useState('');
@@ -64,14 +64,6 @@ function App() {
       payload.pageId = pageId;      // ✅ update target
       payload.spaceId = spaceId;    // ✅ required for PUT
       if (title) payload.title = title;
-    } else if (mode === 'child') {
-      if (!spaceId || !pageId) {
-        setStatus('Both space and parent page ID are required for child creation.');
-        return;
-      }
-      payload.spaceId = spaceId;
-      payload.createAsChildOf = pageId; // ✅ child of pageId
-      if (title) payload.title = title;
     }
 
     setStatus('Processing…');
@@ -107,12 +99,11 @@ function App() {
           <select value={mode} onChange={(e) => setMode(e.target.value)}>
             <option value="create">Create new page (by space)</option>
             <option value="update">Update existing page (by pageId)</option>
-            <option value="child">Create child page (under parentId)</option>
           </select>
         </label>
       </div>
 
-      {(mode === 'create' || mode === 'child' || mode === 'update') && (
+  {(mode === 'create' || mode === 'update') && (
         <div style={{ marginBottom: 8 }}>
           <label>
             Space:&nbsp;
@@ -131,7 +122,7 @@ function App() {
         </div>
       )}
 
-      {(mode === 'update' || mode === 'child') && (
+      {mode === 'update' && (
         <div style={{ marginBottom: 8 }}>
           <label>
             Page ID:&nbsp;
