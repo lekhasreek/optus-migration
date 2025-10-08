@@ -490,7 +490,15 @@ function extractHtmlFromNode(node = {}, isTopLevel = true) {
       if (child.detail && Array.isArray(child.children) && child.children.length > 0) {
         for (const detailChild of child.children) {
           if (Array.isArray(detailChild.fields)) {
+            // Look for LinkText/HiddenText pairs
+            const linkTextField = detailChild.fields.find(f => f && f.name === 'LinkText' && f.value);
+            const hiddenTextField = detailChild.fields.find(f => f && f.name === 'HiddenText' && f.value);
+            if (linkTextField && hiddenTextField) {
+              html += `<ac:structured-macro ac:name="expand"><ac:parameter ac:name="title">${linkTextField.value}</ac:parameter><ac:rich-text-body>${hiddenTextField.value}</ac:rich-text-body></ac:structured-macro>`;
+              continue;
+            }
             for (const f of detailChild.fields) {
+              if (f && f.name === 'HiddenText') continue;
               if (f && typeof f.value !== 'undefined' && f.value !== null) {
                 html += f.value;
               }
@@ -499,7 +507,15 @@ function extractHtmlFromNode(node = {}, isTopLevel = true) {
         }
       } else if (Array.isArray(child.fields)) {
         // If no further children, just display this child's fields
+        // Look for LinkText/HiddenText pairs
+        const linkTextField = child.fields.find(f => f && f.name === 'LinkText' && f.value);
+        const hiddenTextField = child.fields.find(f => f && f.name === 'HiddenText' && f.value);
+        if (linkTextField && hiddenTextField) {
+          html += `<ac:structured-macro ac:name="expand"><ac:parameter ac:name="title">${linkTextField.value}</ac:parameter><ac:rich-text-body>${hiddenTextField.value}</ac:rich-text-body></ac:structured-macro>`;
+          continue;
+        }
         for (const f of child.fields) {
+          if (f && f.name === 'HiddenText') continue;
           if (f && typeof f.value !== 'undefined' && f.value !== null) {
             html += f.value;
           }
@@ -508,11 +524,19 @@ function extractHtmlFromNode(node = {}, isTopLevel = true) {
     }
     return html;
   }
-  // If no children, display the value of each field (fields:[{"value":}])
+  // If no children, display the value of each field (fields:[{"value":}]), except HiddenText
   if (Array.isArray(node.fields)) {
-    for (const f of node.fields) {
-      if (f && typeof f.value !== 'undefined' && f.value !== null) {
-        html += f.value;
+    // Look for LinkText/HiddenText pairs
+    const linkTextField = node.fields.find(f => f && f.name === 'LinkText' && f.value);
+    const hiddenTextField = node.fields.find(f => f && f.name === 'HiddenText' && f.value);
+    if (linkTextField && hiddenTextField) {
+      html += `<ac:structured-macro ac:name="expand"><ac:parameter ac:name="title">${linkTextField.value}</ac:parameter><ac:rich-text-body>${hiddenTextField.value}</ac:rich-text-body></ac:structured-macro>`;
+    } else {
+      for (const f of node.fields) {
+        if (f && f.name === 'HiddenText') continue;
+        if (f && typeof f.value !== 'undefined' && f.value !== null) {
+          html += f.value;
+        }
       }
     }
   }
